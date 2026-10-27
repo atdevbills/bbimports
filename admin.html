@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>document.documentElement.dataset.theme=localStorage.theme||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<meta name="robots" content="noindex">
+<title>Admin · Beyond Border Imports</title>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1 class="brand">Beyond Border Imports</h1><p class="tag">Admin dashboard</p></div>
+    <button id="out" class="pill" hidden>Log out</button>
+  </header>
+  <div id="status"></div>
+
+  <section id="login" class="panel">
+    <h2>Log in</h2>
+    <input id="email" type="email" placeholder="Email" autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="fill" id="loginBtn">Log in</button>
+  </section>
+
+  <section id="dash" hidden>
+    <h2 id="welcome"></h2>
+
+    <div class="panel"><h3>New product</h3>
+      <input id="pName" placeholder="Product name"><input id="pPrice" placeholder="Price (e.g. GH₵ 250)">
+      <textarea id="pDesc" placeholder="Description"></textarea>
+      <input id="pCat" list="catList" placeholder="Category (e.g. Shoes, Bags)"><datalist id="catList"></datalist>
+      <input id="pLikes" placeholder="Likes to show (e.g. 1.5M)">
+      <label class="tog">Out of stock<input type="checkbox" id="pOut"></label>
+      <label class="tog">Pre-order<input type="checkbox" id="pPre"></label>
+      <input id="pImg" type="file" accept="image/*"><button class="fill" id="addProduct">Post product</button></div>
+
+    <div class="panel"><h3>Your products</h3><div id="products"></div></div>
+
+    <div class="panel"><h3>Goods arriving &amp; shipping fee</h3>
+      <select id="nKind"><option value="arrival">Goods arriving</option><option value="shipping">Shipping fee</option></select>
+      <textarea id="nBody" placeholder="e.g. New shoes land on 5 Nov. Shipping to Accra: GH₵ 40"></textarea>
+      <button class="fill" id="addNote">Post update</button><div id="notices"></div></div>
+
+    <div class="panel"><h3>About / profile</h3>
+      <input id="fHandle" placeholder="Handle (e.g. @beyondborder)">
+      <textarea id="fBio" placeholder="Bio"></textarea><input id="fWa" placeholder="WhatsApp number with country code"><input id="fTt" placeholder="TikTok link (https://www.tiktok.com/@yourname)">
+      <label class="label">Profile photo</label><input id="fAv" type="file" accept="image/*">
+      <button class="fill" id="saveProfile">Save profile</button></div>
+  </section>
+</div>
+<button class="theme fab" aria-label="Switch dark or light mode"><svg class="sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+<script src="app.js"></script>
+<script>
+const ADMIN_NAME = "Baanbil Doliyin Gloria";
+$("welcome").textContent = "Welcome, " + ADMIN_NAME;
+const say = m => $("status").textContent = m || "";
+
+$("loginBtn").onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email: $("email").value, password: $("pw").value });
+  say(error ? "Login failed: " + error.message : "");
+};
+$("out").onclick = () => sb.auth.signOut();
+sb.auth.onAuthStateChange((_e, s) => {
+  $("login").hidden = !!s; $("dash").hidden = !s; $("out").hidden = !s;
+  if (s) refresh();
+});
+
+// run any action with simple error + status handling
+async function run(msg, fn) { try { say(msg); await fn(); say("Done."); refresh(); } catch (e) { say("Error: " + (e.message || e)); } }
+
+$("addProduct").onclick = () => run("Posting…", async () => {
+  const f = $("pImg").files[0];
+  if (!f || !$("pName").value) throw new Error("Add a name and a photo.");
+  const up = await upload(f, "products");
+  const { error } = await sb.from("products").insert({ name: $("pName").value, price: $("pPrice").value,
+    description: $("pDesc").value, category: $("pCat").value.trim(), likes_text: $("pLikes").value || "0", out_of_stock: $("pOut").checked, pre_order: $("pPre").checked, image_url: up.url, path: up.path });
+  if (error) throw error;
+  ["pName","pPrice","pDesc","pCat","pLikes","pImg"].forEach(i => $(i).value = "");
+  $("pOut").checked = false; $("pPre").checked = false;
+});
+
+$("addNote").onclick = () => run("Posting…", async () => {
+  if (!$("nBody").value) throw new Error("Type the update first.");
+  const { error } = await sb.from("notices").insert({ kind: $("nKind").value, body: $("nBody").value });
+  if (error) throw error; $("nBody").value = "";
+});
+
+$("saveProfile").onclick = () => run("Saving…", async () => {
+  const row = { id: 1, handle: $("fHandle").value, bio: $("fBio").value, whatsapp: $("fWa").value, tiktok: $("fTt").value };
+  if ($("fAv").files[0]) row.avatar_url = (await upload($("fAv").files[0], "profile")).url;
+  const { error } = await sb.from("profile").upsert(row);
+  if (error) throw error;
+});
+
+async function refresh() {
+  const [p, n, pr] = await Promise.all([
+    sb.from("products").select("*").order("created_at", { ascending: false }),
+    sb.from("notices").select("*").order("created_at", { ascending: false }),
+    sb.from("profile").select("*").eq("id", 1).maybeSingle()
+  ]);
+  $("catList").replaceChildren(...[...new Set((p.data || []).map(x => x.category).filter(Boolean))].map(c => h("option", { value: c })));
+  $("products").replaceChildren(...(p.data || []).map(x => {
+    const likes = h("input", { value: x.likes_text || "", placeholder: "Likes (e.g. 1.5M)" });
+    const cat = h("input", { value: x.category || "", placeholder: "Category" }); cat.setAttribute("list", "catList");
+    const mk = (label, on) => { const i = h("input", { type: "checkbox", checked: !!on }); return [h("label", { className: "tog" }, label, i), i]; };
+    const [outL, out] = mk("Out of stock", x.out_of_stock), [preL, pre] = mk("Pre-order", x.pre_order);
+    const save = h("button", { textContent: "Save" });
+    save.onclick = () => run("Saving…", async () => { const { error } = await sb.from("products").update({ likes_text: likes.value, category: cat.value.trim(), out_of_stock: out.checked, pre_order: pre.checked }).eq("id", x.id); if (error) throw error; });
+    const del = h("button", { textContent: "Delete" });
+    del.onclick = () => confirm("Delete " + x.name + "?") && run("Deleting…", async () => {
+      await sb.storage.from("media").remove([x.path]); await sb.from("products").delete().eq("id", x.id); });
+    return h("div", { className: "row" }, h("img", { src: x.image_url }), h("div", { className: "grow" }, h("b", { textContent: x.name }), cat, likes, outL, preL), save, del);
+  }));
+  $("notices").replaceChildren(...(n.data || []).map(x => {
+    const del = h("button", { textContent: "Delete" });
+    del.onclick = () => run("Deleting…", async () => { await sb.from("notices").delete().eq("id", x.id); });
+    return h("div", { className: "row" }, h("div", { className: "grow" }, h("span", { className: "label", textContent: x.kind === "shipping" ? "Shipping fee" : "Goods arriving" }), h("div", { textContent: x.body })), del);
+  }));
+  const me = pr.data || {};
+  $("fHandle").value = me.handle || ""; $("fBio").value = me.bio || ""; $("fWa").value = me.whatsapp || ""; $("fTt").value = me.tiktok || "";
+}
+</script>
+</body>
+</html>
