@@ -6,6 +6,8 @@
 <script>document.documentElement.dataset.theme=localStorage.theme||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
 <link rel="icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <title>Beyond Border Imports</title>
@@ -14,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Beyond Border Imports">
 <meta property="og:description" content="Imported goods, delivered to you. Browse the latest products.">
-<meta property="og:image" content="https://YOUR-SITE-URL/icon.png">
+<meta property="og:image" content="https://icon.png">
 </head>
 <body>
 <div class="wrap">
@@ -24,6 +26,16 @@
   </header>
 
   <section id="shop">
+    <div class="hero">
+      <div class="hero-text">
+      <span class="kicker">Imported goods</span>
+      <h2>Treasures <em>Beyond</em> Borders</h2>
+      <p>Quality products from abroad, delivered to you. Browse, pick, and order on WhatsApp.</p>
+      <a class="btn" href="#list">Shop now</a>
+      </div>
+      <div class="collage" id="collage" hidden></div>
+    </div>
+    <div class="trust"><span>Genuine imports</span><span>Fast delivery</span><span>Order via WhatsApp</span></div>
     <div id="notes" class="notes" hidden></div>
     <div class="filters">
       <input id="q" type="search" placeholder="Search products" aria-label="Search products">
@@ -136,6 +148,10 @@ async function load() {
   // products
   ALL = products; WA = (me.whatsapp || "").replace(/\D/g, "");
   drawCats(); drawProducts();
+  const pics = products.filter(x => x.image_url).slice(0, 4);   // hero collage: newest product photos
+  $("collage").hidden = pics.length < 2;
+  $("collage").dataset.n = pics.length;
+  $("collage").replaceChildren(...pics.map(x => h("a", { href: "#p-" + x.id, ariaLabel: x.name }, h("img", { src: x.image_url, alt: x.name }))));
 
   // about (profile page)
   const name = "Beyond Border Imports";   // fixed brand name
