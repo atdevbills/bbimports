@@ -104,16 +104,30 @@ async function refresh() {
   ]);
   $("catList").replaceChildren(...[...new Set((p.data || []).map(x => x.category).filter(Boolean))].map(c => h("option", { value: c })));
   $("products").replaceChildren(...(p.data || []).map(x => {
+    const name = h("input", { value: x.name || "", placeholder: "Product name" });
+    const price = h("input", { value: x.price || "", placeholder: "Price (e.g. GH₵ 250)" });
+    const desc = h("textarea", { value: x.description || "", placeholder: "Description" });
     const likes = h("input", { value: x.likes_text || "", placeholder: "Likes (e.g. 1.5M)" });
     const cat = h("input", { value: x.category || "", placeholder: "Category" }); cat.setAttribute("list", "catList");
+    const photo = h("input", { type: "file", accept: "image/*" });
     const mk = (label, on) => { const i = h("input", { type: "checkbox", checked: !!on }); return [h("label", { className: "tog" }, label, i), i]; };
     const [outL, out] = mk("Out of stock", x.out_of_stock), [preL, pre] = mk("Pre-order", x.pre_order);
+    const lab = t => h("span", { className: "label", textContent: t });
     const save = h("button", { textContent: "Save" });
-    save.onclick = () => run("Saving…", async () => { const { error } = await sb.from("products").update({ likes_text: likes.value, category: cat.value.trim(), out_of_stock: out.checked, pre_order: pre.checked }).eq("id", x.id); if (error) throw error; });
+    save.onclick = () => run("Saving…", async () => {
+      if (!name.value.trim()) throw new Error("The product needs a name.");
+      const row = { name: name.value.trim(), price: price.value.trim(), description: desc.value, likes_text: likes.value, category: cat.value.trim(), out_of_stock: out.checked, pre_order: pre.checked };
+      const f = photo.files[0];
+      if (f) { const up = await upload(f, "products"); row.image_url = up.url; row.path = up.path; }
+      const { error } = await sb.from("products").update(row).eq("id", x.id);
+      if (error) throw error;
+      if (f && x.path) await sb.storage.from("media").remove([x.path]);   // remove the old photo only after the update worked
+    });
     const del = h("button", { textContent: "Delete" });
     del.onclick = () => confirm("Delete " + x.name + "?") && run("Deleting…", async () => {
       await sb.storage.from("media").remove([x.path]); await sb.from("products").delete().eq("id", x.id); });
-    return h("div", { className: "row" }, h("img", { src: x.image_url }), h("div", { className: "grow" }, h("b", { textContent: x.name }), cat, likes, outL, preL), save, del);
+    return h("div", { className: "row" }, h("img", { src: x.image_url }), h("div", { className: "grow" },
+      lab("Name"), name, lab("Price"), price, lab("Description"), desc, lab("Category"), cat, lab("Likes"), likes, outL, preL, lab("Change photo (optional)"), photo), save, del);
   }));
   $("notices").replaceChildren(...(n.data || []).map(x => {
     const del = h("button", { textContent: "Delete" });
